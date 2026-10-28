@@ -71,12 +71,12 @@
       "intro": "Concerts, spectacles et théâtre des 2 prochains mois, mis à jour toutes les heures."
     },
     {
-      "title": "Codes postaux (départements)",
+      "title": "Codes postaux ou départements",
       "name": "codes_postaux",
       "type": "string",
       "default": "67, 68",
       "placeholder": "67, 68",
-      "hint": "Deux premiers chiffres du code postal des salles, séparés par des virgules. Départements reconnus : 54, 55, 57, 67, 68, 88."
+      "hint": "Séparés par des virgules. 2 chiffres = département entier (67, 68) ; 5 chiffres = code postal précis (Strasbourg : 67000, 67100, 67200). Départements reconnus : 54, 55, 57, 67, 68, 88."
     },
     {
       "title": "Clé API Ticketmaster",

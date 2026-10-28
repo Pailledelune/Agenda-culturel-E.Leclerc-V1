@@ -108,8 +108,10 @@ def lire_config():
         return {}
 
 
-def departements(texte):
-    return [d for d in re.findall(r"\d{2}", texte or "")]
+def codes_postaux(texte):
+    """ "67, 68" -> departements entiers ; "67000, 67100" -> codes postaux precis.
+    Chaque code garde les salles dont le code postal commence par lui."""
+    return re.findall(r"\d{2,5}", texte or "")
 
 
 def geohash(lat, lon, longueur=7):
@@ -174,7 +176,7 @@ def date_courte(jour):
     return "%s %02d/%02d" % (JOURS[jour.weekday()], jour.day, jour.month)
 
 
-def resumer(evenements, deps):
+def resumer(evenements, codes):
     """Un element par spectacle et par salle, avec sa prochaine date"""
     spectacles = {}
     vus = set()
@@ -183,7 +185,8 @@ def resumer(evenements, deps):
             continue
         vus.add(e.get("id"))
         salle = (e.get("_embedded", {}).get("venues") or [{}])[0]
-        if (salle.get("postalCode") or "")[:2] not in deps:
+        cp = salle.get("postalCode") or ""
+        if not any(cp.startswith(c) for c in codes):
             continue
         if e.get("dates", {}).get("status", {}).get("code") in STATUTS_EXCLUS:
             continue
@@ -265,28 +268,28 @@ def ecrire(liste):
     os.rename("agenda.json.tmp", "agenda.json")
 
 
-def collecter(cle, deps):
+def collecter(cle, codes):
     evenements = []
-    for dep in deps:
+    for dep in sorted(set(c[:2] for c in codes)):   # une recherche par departement
         if dep in CENTRES:
             evenements += interroger(cle, CENTRES[dep])
             time.sleep(0.5)
         else:
             print("departement %s inconnu, ignore" % dep)
-    return resumer(evenements, deps)
+    return resumer(evenements, codes)
 
 
 def main():
     while True:
         config = lire_config()
         cle = (config.get("cle_api") or "").strip()
-        deps = departements(config.get("codes_postaux"))
-        if not cle or not deps:
+        codes = codes_postaux(config.get("codes_postaux"))
+        if not cle or not codes:
             print("agenda: cle API ou codes postaux manquants")
             time.sleep(60)
             continue
         try:
-            liste = collecter(cle, deps)
+            liste = collecter(cle, codes)
             telecharger_affiches(liste)
             ecrire(liste)
             print("agenda: %d spectacles" % len(liste))
