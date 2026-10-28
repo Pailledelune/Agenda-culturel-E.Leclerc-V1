@@ -12,6 +12,7 @@ import os
 import re
 import time
 import traceback
+import unicodedata
 
 import requests
 
@@ -33,6 +34,70 @@ RAYON_KM = 90
 
 STATUTS_EXCLUS = ("cancelled", "postponed")
 JOURS = ["lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim."]
+
+# Type de spectacle en francais, d'apres la classification Ticketmaster
+GENRES_MUSIQUE = {
+    "Chanson Francaise": u"chanson", "Rock": u"rock", "Pop": u"pop", "Metal": u"métal",
+    "Hip-Hop/Rap": u"rap", "Dance/Electronic": u"électro", "World": u"musiques du monde",
+    "R&B": u"R&B", "Jazz": u"jazz", "Blues": u"blues", "Reggae": u"reggae",
+    "Religious": u"gospel", "Classical": u"classique", "Country": u"country", "Folk": u"folk",
+}
+GENRES_SPECTACLE = {
+    "Comedy": u"Humour", "Circus & Specialty Acts": u"Cirque", "Children's Theatre": u"Jeune public",
+    "Magic & Illusion": u"Magie", "Opera": u"Opéra", "Classical": u"Concert classique",
+}
+SOUS_GENRES_SPECTACLE = {
+    "Musical": u"Comédie musicale", "Monologue": u"Seul en scène", "Ballet": u"Ballet",
+}
+
+
+def type_spectacle(evenement):
+    c = (evenement.get("classifications") or [{}])[0]
+    segment = (c.get("segment") or {}).get("name")
+    genre = (c.get("genre") or {}).get("name")
+    sous_genre = (c.get("subGenre") or {}).get("name")
+    if segment == "Music":
+        precision = GENRES_MUSIQUE.get(genre)
+        return u"Concert " + precision if precision else u"Concert"
+    if sous_genre in SOUS_GENRES_SPECTACLE:
+        return SOUS_GENRES_SPECTACLE[sous_genre]
+    if genre in GENRES_SPECTACLE:
+        return GENRES_SPECTACLE[genre]
+    if genre == "Theatre":
+        return u"Théâtre"
+    if genre == "Dance":
+        return u"Danse"
+    return u"Spectacle"
+
+
+def normaliser(texte):
+    """Minuscules sans accents ni ponctuation, pour comparer des textes"""
+    t = unicodedata.normalize("NFKD", texte or u"")
+    t = u"".join(ch for ch in t if not unicodedata.combining(ch)).lower()
+    return u" ".join(re.findall(r"\w+", t, flags=re.U))
+
+
+def nettoyer_titre(titre, salle, ville):
+    """Retire du titre les morceaux repetes, la ville et le nom de la salle.
+    "CIRQUE DU SOLEIL - OVO - OVO - STRASBOURG - ZENITH DE STRASBOURG"
+    devient "CIRQUE DU SOLEIL - OVO"."""
+    lieu = set(normaliser(salle + u" " + ville).split())
+    gardes = []
+    for morceau in re.split(r"\s+-\s+", u" ".join(titre.split())):
+        n = normaliser(morceau)
+        if not n:
+            continue
+        if gardes:
+            mots = [m for m in n.split() if len(m) > 2]
+            if mots and all(m in lieu for m in mots):
+                continue                      # ville ou salle
+            if any(n in normaliser(g) for g in gardes):
+                continue                      # deja dit
+            plus_court = [g for g in gardes if normaliser(g) in n]
+            if plus_court:                    # version plus complete d'un morceau deja garde
+                gardes = [g for g in gardes if g not in plus_court]
+        gardes.append(morceau)
+    return u" - ".join(gardes).upper()
 
 
 def lire_config():
@@ -131,11 +196,14 @@ def resumer(evenements, deps):
         cle = (e.get("name", "").strip().lower(), salle.get("id"))
         s = spectacles.get(cle)
         if s is None:
+            nom_salle = u" ".join((salle.get("name") or u"").split())
+            ville = re.sub(r"\s+cedex.*$", u"", (salle.get("city") or {}).get("name") or u"", flags=re.I)
             spectacles[cle] = {
                 "id": e.get("id"),
-                "titre": " ".join(e.get("name", "").split()),
-                "salle": " ".join((salle.get("name") or "").split()),
-                "ville": re.sub(r"\s+cedex.*$", "", (salle.get("city") or {}).get("name") or "", flags=re.I),
+                "titre": nettoyer_titre(e.get("name", u""), nom_salle, ville),
+                "type": type_spectacle(e),
+                "salle": nom_salle,
+                "ville": ville,
                 "debut": jour, "heure": heure, "fin": jour,
                 "image": affiche_url(e.get("images")),
             }
@@ -149,6 +217,7 @@ def resumer(evenements, deps):
         resultat.append({
             "id": s["id"],
             "titre": s["titre"],
+            "type": s["type"],
             "salle": s["salle"],
             "ville": s["ville"],
             "jour": date_courte(s["debut"]),
