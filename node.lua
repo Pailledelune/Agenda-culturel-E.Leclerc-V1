@@ -5,23 +5,43 @@ local json = require "json"
 local font = resource.load_font "font.ttf"
 local logo = resource.load_image "logo.png"
 
--- Couleurs PROVISOIRES : a remplacer par la charte de l'Espace culturel
-local FOND     = {0.08, 0.09, 0.12}
-local FOND_UNE = {0.12, 0.14, 0.17}
-local TRAIT    = {0.15, 0.17, 0.21}
-local ACCENT   = {0.97, 0.58, 0.12}
-local TEXTE    = {1.00, 1.00, 1.00}
-local TEXTE_2  = {0.73, 0.75, 0.80}
-
 local function texture(c)
   return resource.create_colored_texture(c[1], c[2], c[3], 1)
 end
 
-local tex_blanc    = texture{1, 1, 1}
-local tex_fond     = texture(FOND)
-local tex_fond_une = texture(FOND_UNE)
-local tex_trait    = texture(TRAIT)
-local tex_accent   = texture(ACCENT)
+local function melange(c1, c2, t)
+  return {c1[1] + (c2[1] - c1[1]) * t, c1[2] + (c2[2] - c1[2]) * t, c1[3] + (c2[3] - c1[3]) * t}
+end
+
+-- Couleurs : fond, texte et accent se reglent dans info-beamer (valeurs par
+-- defaut ci-dessous) ; les autres teintes en sont deduites
+local DEFAUT_FOND   = {0.08, 0.09, 0.12}   -- #14171F
+local DEFAUT_TEXTE  = {1.00, 1.00, 1.00}   -- #FFFFFF
+local DEFAUT_ACCENT = {0.97, 0.58, 0.12}   -- #F7941F
+
+local tex_blanc = texture{1, 1, 1}
+local FOND, FOND_UNE, TRAIT, ACCENT, TEXTE, TEXTE_2
+local tex_fond, tex_fond_une, tex_trait, tex_accent
+
+local function appliquer_couleurs(fond, texte, accent)
+  FOND, TEXTE, ACCENT = fond, texte, accent
+  FOND_UNE = melange(fond, {1, 1, 1}, 0.05)
+  TRAIT    = melange(fond, {1, 1, 1}, 0.09)
+  TEXTE_2  = melange(texte, fond, 0.25)
+  for _, t in pairs{tex_fond or false, tex_fond_une or false, tex_trait or false, tex_accent or false} do
+    if t then t:dispose() end
+  end
+  tex_fond, tex_fond_une = texture(FOND), texture(FOND_UNE)
+  tex_trait, tex_accent  = texture(TRAIT), texture(ACCENT)
+end
+
+appliquer_couleurs(DEFAUT_FOND, DEFAUT_TEXTE, DEFAUT_ACCENT)
+
+-- Couleur lue dans config.json ({r=, g=, b=, ...}), ou la valeur par defaut
+local function couleur(c, defaut)
+  if type(c) == "table" and tonumber(c.r) then return {c.r, c.g, c.b} end
+  return defaut
+end
 
 -- Degrade de transparence : les lignes s'estompent en passant sous la une
 local shader_fondu = resource.create_shader[[
@@ -55,6 +75,9 @@ util.json_watch("config.json", function(config)
   titre    = config.titre or titre
   vitesse  = VITESSES[tostring(config.vitesse)] or VITESSES["2"]
   rotation = tonumber(config.rotation) or 90
+  appliquer_couleurs(couleur(config.couleur_fond, DEFAUT_FOND),
+                     couleur(config.couleur_texte, DEFAUT_TEXTE),
+                     couleur(config.couleur_accent, DEFAUT_ACCENT))
 end)
 
 -- Agenda ecrit par le service (agenda.json), absent au premier demarrage
@@ -228,28 +251,41 @@ local function une(e, W, H, y0, h, a)
   end
 end
 
+-- Texte reduit (jusqu'a 75 %) plutot que coupe, puis raccourci en dernier recours
+local function ajuster(texte, taille, largeur)
+  local w = font:width(texte, taille)
+  if w > largeur then taille = math.max(taille * largeur / w, taille * 0.75) end
+  return tronquer(texte, taille, largeur), taille
+end
+
+-- Une ligne de la liste, sur 3 niveaux :
+--   date      TITRE
+--   heure     SALLE - Ville
+--             Type de spectacle  jusqu'au ...
 local function ligne(e, W, y, h)
   local p = W * 0.04
-  local col = W * 0.20
-  local t1, t2 = h * 0.24, h * 0.19
+  local t_date, t_heure = h * 0.28, h * 0.21
+  local t1, t2, t3 = h * 0.21, h * 0.17, h * 0.15
+  local y1, y2, y3 = y + h * 0.10, y + h * 0.40, y + h * 0.66
 
-  ecrire(e.jour or "", p, y + h * 0.22, t1, ACCENT)
-  ecrire(e.heure or "", p, y + h * 0.55, t2, TEXTE_2)
+  ecrire(e.jour or "", p, y1, t_date, ACCENT)
+  ecrire(e.heure or "", p, y1 + t_date * 1.2, t_heure, TEXTE_2)
 
-  local x = p + col
+  local x = p + font:width("mer. 30/12", t_date) + p * 0.8
   local larg = W - x - p
-  ecrire(tronquer(e.titre or "", t1, larg), x, y + h * 0.22, t1, TEXTE)
+  ecrire(tronquer(e.titre or "", t1, larg), x, y1, t1, TEXTE)
 
-  -- Type de spectacle en couleur, puis salle et ville
-  local sous = lieu(e)
-  if type(e.fin) == "string" then sous = sous .. " - jusqu'au " .. e.fin end
+  local texte, taille = ajuster(lieu(e), t2, larg)
+  ecrire(texte, x, y2 + (t2 - taille) / 2, taille, TEXTE_2)
+
   local xs = x
   if type(e.type) == "string" then
-    local t = tronquer(e.type, t2, larg * 0.45)
-    ecrire(t, xs, y + h * 0.55, t2, ACCENT)
-    xs = xs + font:width(t, t2) + t2 * 0.7
+    ecrire(e.type, xs, y3, t3, ACCENT)
+    xs = xs + font:width(e.type, t3) + t3 * 0.8
   end
-  ecrire(tronquer(sous, t2, x + larg - xs), xs, y + h * 0.55, t2, TEXTE_2)
+  if type(e.fin) == "string" then
+    ecrire(tronquer("jusqu'au " .. e.fin, t3, x + larg - xs), xs, y3, t3, TEXTE_2)
+  end
 
   tex_trait:draw(p, y + h - 2, W - p, y + h)
 end

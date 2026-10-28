@@ -40,6 +40,32 @@
       "default": "2"
     },
     {
+      "title": "Couleurs",
+      "type": "section",
+      "intro": "Valeurs par défaut : fond #14171F, texte #FFFFFF, accent #F7941F. Les teintes intermédiaires (cartouche de la une, filets, texte secondaire) sont calculées à partir de ces trois couleurs."
+    },
+    {
+      "title": "Couleur de fond",
+      "name": "couleur_fond",
+      "type": "color",
+      "default": [0.08, 0.09, 0.12, 1],
+      "hint": "Par défaut : #14171F (gris anthracite)"
+    },
+    {
+      "title": "Couleur du texte",
+      "name": "couleur_texte",
+      "type": "color",
+      "default": [1, 1, 1, 1],
+      "hint": "Titres et en-tête. Par défaut : #FFFFFF (blanc)"
+    },
+    {
+      "title": "Couleur d'accent",
+      "name": "couleur_accent",
+      "type": "color",
+      "default": [0.97, 0.58, 0.12, 1],
+      "hint": "Dates, types de spectacle, « À la une » et filet de l'en-tête. Par défaut : #F7941F (orange)"
+    },
+    {
       "title": "Événements",
       "type": "section",
       "intro": "Concerts, spectacles et théâtre des 2 prochains mois, mis à jour toutes les heures."
