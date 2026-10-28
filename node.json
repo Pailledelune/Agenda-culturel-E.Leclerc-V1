@@ -76,7 +76,7 @@
       "type": "string",
       "default": "67, 68",
       "placeholder": "67, 68",
-      "hint": "Séparés par des virgules. 2 chiffres = département entier (67, 68) ; 5 chiffres = code postal précis (Strasbourg : 67000, 67100, 67200). Départements reconnus : 54, 55, 57, 67, 68, 88."
+      "hint": "Séparés par des virgules. 2 chiffres = département entier (67, 68) ; 5 chiffres = code postal précis (Strasbourg : 67000, 67100, 67200). Tous les départements sont reconnus, Corse (20) et outre-mer (971 à 976) compris."
     },
     {
       "title": "Clé API Ticketmaster",

@@ -24,13 +24,46 @@ JOURS_A_VENIR = 61
 # Segments Ticketmaster : Musique, Arts et spectacles
 SEGMENTS = "KZFzniwnSyZfZ7v7nJ,KZFzniwnSyZfZ7v7na"
 
-# Centre approximatif des departements connus (recherche dans un rayon de 90 km,
-# puis filtre sur le code postal de la salle)
+# Centre (pondere par la population) et rayon en km de chaque departement,
+# calcules d'apres geo.api.gouv.fr. On cherche autour de ce centre, puis on
+# filtre sur le code postal de la salle. Corse : 2A et 2B (codes postaux 20...),
+# outre-mer : 971 a 976.
 CENTRES = {
-    "54": (48.79, 6.16), "55": (49.01, 5.38), "57": (49.04, 6.66),
-    "67": (48.67, 7.55), "68": (47.86, 7.27), "88": (48.20, 6.38),
+    "01": (46.11, 5.36, 75), "02": (49.57, 3.46, 85), "03": (46.34, 3.16, 75),
+    "04": (44.0, 6.02, 95), "05": (44.62, 6.21, 70), "06": (43.68, 7.16, 80),
+    "07": (44.81, 4.57, 70), "08": (49.72, 4.71, 65), "09": (43.02, 1.56, 65),
+    "10": (48.31, 4.06, 65), "11": (43.17, 2.57, 80), "12": (44.32, 2.59, 80),
+    "13": (43.41, 5.3, 80), "14": (49.16, -0.33, 75), "15": (45.01, 2.57, 70),
+    "16": (45.69, 0.12, 75), "17": (45.9, -0.89, 115), "18": (47.08, 2.43, 80),
+    "19": (45.27, 1.71, 85), "2A": (41.86, 8.86, 65), "2B": (42.53, 9.33, 80),
+    "21": (47.31, 4.97, 90), "22": (48.52, -2.81, 75), "23": (46.13, 1.95, 65),
+    "24": (45.08, 0.7, 75), "25": (47.25, 6.36, 85), "26": (44.82, 4.95, 100),
+    "27": (49.13, 1.08, 70), "28": (48.47, 1.4, 60), "29": (48.27, -4.2, 80),
+    "30": (43.93, 4.32, 90), "31": (43.55, 1.38, 120), "32": (43.69, 0.52, 70),
+    "33": (44.84, -0.58, 95), "34": (43.55, 3.67, 100), "35": (48.18, -1.68, 70),
+    "36": (46.79, 1.64, 65), "37": (47.34, 0.68, 75), "38": (45.35, 5.49, 80),
+    "39": (46.77, 5.65, 65), "40": (43.82, -0.94, 95), "41": (47.58, 1.38, 75),
+    "42": (45.6, 4.29, 85), "43": (45.16, 3.92, 75), "44": (47.27, -1.7, 75),
+    "45": (47.92, 2.17, 75), "46": (44.63, 1.6, 55), "47": (44.34, 0.52, 60),
+    "48": (44.56, 3.47, 60), "49": (47.38, -0.6, 70), "50": (49.17, -1.41, 85),
+    "51": (49.1, 4.13, 85), "52": (48.22, 5.17, 75), "53": (48.11, -0.71, 70),
+    "54": (48.84, 6.11, 95), "55": (48.97, 5.36, 75), "56": (47.76, -2.92, 80),
+    "57": (49.16, 6.45, 90), "58": (47.09, 3.3, 75), "59": (50.56, 3.14, 100),
+    "60": (49.36, 2.46, 75), "61": (48.62, 0.03, 75), "62": (50.54, 2.42, 75),
+    "63": (45.77, 3.17, 75), "64": (43.36, -0.91, 80), "65": (43.18, 0.11, 60),
+    "66": (42.66, 2.84, 95), "67": (48.62, 7.67, 70), "68": (47.84, 7.32, 60),
+    "69": (45.77, 4.81, 70), "70": (47.63, 6.2, 70), "71": (46.63, 4.65, 80),
+    "72": (47.98, 0.2, 60), "73": (45.58, 6.12, 85), "74": (46.06, 6.3, 60),
+    "75": (48.86, 2.35, 20), "76": (49.55, 0.84, 80), "77": (48.72, 2.77, 75),
+    "78": (48.87, 1.99, 55), "79": (46.53, -0.37, 70), "80": (49.94, 2.26, 75),
+    "81": (43.78, 2.11, 70), "82": (44.04, 1.29, 65), "83": (43.28, 6.17, 75),
+    "84": (43.99, 5.01, 70), "85": (46.7, -1.41, 85), "86": (46.62, 0.4, 75),
+    "87": (45.86, 1.22, 65), "88": (48.19, 6.52, 90), "89": (47.94, 3.48, 85),
+    "90": (47.63, 6.88, 30), "91": (48.64, 2.33, 50), "92": (48.86, 2.26, 20),
+    "93": (48.91, 2.45, 20), "94": (48.79, 2.44, 20), "95": (49.02, 2.25, 55),
+    "971": (16.21, -61.54, 60), "972": (14.63, -61.01, 40), "973": (4.79, -52.97, 225),
+    "974": (-21.09, 55.48, 45), "976": (-12.8, 45.17, 30),
 }
-RAYON_KM = 90
 
 STATUTS_EXCLUS = ("cancelled", "postponed")
 JOURS = ["lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim."]
@@ -134,18 +167,18 @@ def geohash(lat, lon, longueur=7):
     return resultat
 
 
-def interroger(cle, centre):
+def interroger(cle, dep):
+    lat, lon, rayon = CENTRES[dep]
     maintenant = datetime.datetime.utcnow().replace(microsecond=0)
     fin = maintenant + datetime.timedelta(days=JOURS_A_VENIR)
     evenements = []
     page = 0
     while True:
-        r = requests.get(URL, timeout=30, params={
+        params = {
             "apikey": cle,
-            "geoPoint": geohash(*centre),
-            "radius": RAYON_KM,
+            "geoPoint": geohash(lat, lon),
+            "radius": rayon,
             "unit": "km",
-            "countryCode": "FR",
             "segmentId": SEGMENTS,
             "startDateTime": maintenant.isoformat() + "Z",
             "endDateTime": fin.isoformat() + "Z",
@@ -153,7 +186,11 @@ def interroger(cle, centre):
             "size": 200,
             "page": page,
             "locale": "*",
-        })
+        }
+        if len(dep) == 2:
+            # Metropole : evite les salles allemandes ou suisses aux codes postaux proches
+            params["countryCode"] = "FR"
+        r = requests.get(URL, timeout=30, params=params)
         r.raise_for_status()
         donnees = r.json()
         evenements += donnees.get("_embedded", {}).get("events", [])
@@ -268,11 +305,21 @@ def ecrire(liste):
     os.rename("agenda.json.tmp", "agenda.json")
 
 
+def departements(code):
+    """Departement(s) a interroger pour un code postal ou un debut de code"""
+    if code.startswith("97"):
+        return [code[:3]] if len(code) >= 3 else [d for d in CENTRES if d.startswith("97")]
+    if code.startswith("20"):
+        return ["2A", "2B"]                  # Corse : codes postaux 20...
+    return [code[:2]]
+
+
 def collecter(cle, codes):
     evenements = []
-    for dep in sorted(set(c[:2] for c in codes)):   # une recherche par departement
+    deps = sorted(set(d for c in codes for d in departements(c)))
+    for dep in deps:                         # une recherche par departement
         if dep in CENTRES:
-            evenements += interroger(cle, CENTRES[dep])
+            evenements += interroger(cle, dep)
             time.sleep(0.5)
         else:
             print("departement %s inconnu, ignore" % dep)
