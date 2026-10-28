@@ -1,0 +1,64 @@
+{
+  "name": "Agenda culturel Leclerc",
+  "permissions": {
+    "network": "Récupère les concerts et spectacles sur l'API Ticketmaster et télécharge leurs affiches"
+  },
+  "options": [
+    {
+      "title": "Écran",
+      "type": "section"
+    },
+    {
+      "title": "Titre de l'en-tête",
+      "name": "titre",
+      "type": "string",
+      "default": "Strasbourg",
+      "placeholder": "Strasbourg ou Metz · Nancy"
+    },
+    {
+      "title": "Orientation de l'écran",
+      "name": "rotation",
+      "type": "select",
+      "options": [
+        [90, "Portrait (tourné à droite)"],
+        [270, "Portrait (tourné à gauche)"],
+        [0, "Paysage"]
+      ],
+      "default": 90,
+      "hint": "Si l'affichage est à l'envers, choisir l'autre sens de portrait."
+    },
+    {
+      "title": "Vitesse de défilement",
+      "name": "vitesse",
+      "type": "select",
+      "options": [
+        ["1", "Très lente"],
+        ["2", "Lente"],
+        ["3", "Normale"],
+        ["4", "Rapide"]
+      ],
+      "default": "2"
+    },
+    {
+      "title": "Événements",
+      "type": "section",
+      "intro": "Concerts, spectacles et théâtre des 2 prochains mois, mis à jour toutes les heures."
+    },
+    {
+      "title": "Codes postaux (départements)",
+      "name": "codes_postaux",
+      "type": "string",
+      "default": "67, 68",
+      "placeholder": "67, 68",
+      "hint": "Deux premiers chiffres du code postal des salles, séparés par des virgules. Départements reconnus : 54, 55, 57, 67, 68, 88."
+    },
+    {
+      "title": "Clé API Ticketmaster",
+      "name": "cle_api",
+      "type": "string",
+      "ui_type": "password",
+      "default": "",
+      "hint": "Consumer Key fournie par developer.ticketmaster.com"
+    }
+  ]
+}

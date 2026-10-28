@@ -1,0 +1,10 @@
+{
+  "name": "Agenda culturel Leclerc",
+  "author": "gaetanchristophe-commits",
+  "desc": "Concerts, spectacles et théâtre de la région (Ticketmaster) en liste défilante pour écran portrait, Espace culturel E.Leclerc",
+  "platforms": ["pi/epoch-1", "pi/epoch-2"],
+  "offline": {
+    "support": "no",
+    "info": "Nécessite Internet pour récupérer les événements"
+  }
+}

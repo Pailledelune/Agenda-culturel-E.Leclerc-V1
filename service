@@ -1,0 +1,231 @@
+#!/usr/bin/python2.7
+# -*- coding: utf-8 -*-
+#
+# Service agenda : interroge Ticketmaster toutes les heures, garde les
+# concerts, spectacles et pieces de theatre des 2 prochains mois dans les
+# departements choisis, telecharge les affiches et ecrit agenda.json,
+# lu par node.lua. Compatible Python 2.7 (info-beamer) et 3.
+
+import datetime
+import json
+import os
+import re
+import time
+import traceback
+
+import requests
+
+URL = "https://app.ticketmaster.com/discovery/v2/events.json"
+PERIODE = 60 * 60          # secondes entre deux mises a jour
+PERIODE_ERREUR = 5 * 60    # nouvel essai apres une erreur
+JOURS_A_VENIR = 61
+
+# Segments Ticketmaster : Musique, Arts et spectacles
+SEGMENTS = "KZFzniwnSyZfZ7v7nJ,KZFzniwnSyZfZ7v7na"
+
+# Centre approximatif des departements connus (recherche dans un rayon de 90 km,
+# puis filtre sur le code postal de la salle)
+CENTRES = {
+    "54": (48.79, 6.16), "55": (49.01, 5.38), "57": (49.04, 6.66),
+    "67": (48.67, 7.55), "68": (47.86, 7.27), "88": (48.20, 6.38),
+}
+RAYON_KM = 90
+
+STATUTS_EXCLUS = ("cancelled", "postponed")
+JOURS = ["lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim."]
+
+
+def lire_config():
+    try:
+        with open("config.json") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def departements(texte):
+    return [d for d in re.findall(r"\d{2}", texte or "")]
+
+
+def geohash(lat, lon, longueur=7):
+    base32 = "0123456789bcdefghjkmnpqrstuvwxyz"
+    plage_lat, plage_lon = [-90.0, 90.0], [-180.0, 180.0]
+    resultat, bit, car, pair = "", 0, 0, True
+    while len(resultat) < longueur:
+        plage, valeur = (plage_lon, lon) if pair else (plage_lat, lat)
+        milieu = (plage[0] + plage[1]) / 2
+        if valeur > milieu:
+            car |= 1 << (4 - bit)
+            plage[0] = milieu
+        else:
+            plage[1] = milieu
+        pair = not pair
+        bit += 1
+        if bit == 5:
+            resultat += base32[car]
+            bit, car = 0, 0
+    return resultat
+
+
+def interroger(cle, centre):
+    maintenant = datetime.datetime.utcnow().replace(microsecond=0)
+    fin = maintenant + datetime.timedelta(days=JOURS_A_VENIR)
+    evenements = []
+    page = 0
+    while True:
+        r = requests.get(URL, timeout=30, params={
+            "apikey": cle,
+            "geoPoint": geohash(*centre),
+            "radius": RAYON_KM,
+            "unit": "km",
+            "countryCode": "FR",
+            "segmentId": SEGMENTS,
+            "startDateTime": maintenant.isoformat() + "Z",
+            "endDateTime": fin.isoformat() + "Z",
+            "sort": "date,asc",
+            "size": 200,
+            "page": page,
+            "locale": "*",
+        })
+        r.raise_for_status()
+        donnees = r.json()
+        evenements += donnees.get("_embedded", {}).get("events", [])
+        page += 1
+        total_pages = donnees.get("page", {}).get("totalPages", 0)
+        if page >= total_pages or (page + 1) * 200 > 1000:   # limite de l'API
+            return evenements
+        time.sleep(0.5)
+
+
+def affiche_url(images):
+    """Image 3:2 la plus proche de 640 px de large"""
+    candidates = [i for i in images or [] if i.get("ratio") == "3_2"] or list(images or [])
+    if not candidates:
+        return None
+    return min(candidates, key=lambda i: abs((i.get("width") or 0) - 640)).get("url")
+
+
+def date_courte(jour):
+    return "%s %02d/%02d" % (JOURS[jour.weekday()], jour.day, jour.month)
+
+
+def resumer(evenements, deps):
+    """Un element par spectacle et par salle, avec sa prochaine date"""
+    spectacles = {}
+    vus = set()
+    for e in evenements:
+        if e.get("id") in vus:
+            continue
+        vus.add(e.get("id"))
+        salle = (e.get("_embedded", {}).get("venues") or [{}])[0]
+        if (salle.get("postalCode") or "")[:2] not in deps:
+            continue
+        if e.get("dates", {}).get("status", {}).get("code") in STATUTS_EXCLUS:
+            continue
+        debut = e.get("dates", {}).get("start", {})
+        if not debut.get("localDate"):
+            continue
+        jour = datetime.datetime.strptime(debut["localDate"], "%Y-%m-%d")
+        heure = (debut.get("localTime") or "")[:5]
+
+        cle = (e.get("name", "").strip().lower(), salle.get("id"))
+        s = spectacles.get(cle)
+        if s is None:
+            spectacles[cle] = {
+                "id": e.get("id"),
+                "titre": " ".join(e.get("name", "").split()),
+                "salle": " ".join((salle.get("name") or "").split()),
+                "ville": re.sub(r"\s+cedex.*$", "", (salle.get("city") or {}).get("name") or "", flags=re.I),
+                "debut": jour, "heure": heure, "fin": jour,
+                "image": affiche_url(e.get("images")),
+            }
+        else:
+            if (jour, heure) < (s["debut"], s["heure"]):
+                s["debut"], s["heure"] = jour, heure
+            s["fin"] = max(s["fin"], jour)
+
+    resultat = []
+    for s in sorted(spectacles.values(), key=lambda s: (s["debut"], s["heure"], s["titre"])):
+        resultat.append({
+            "id": s["id"],
+            "titre": s["titre"],
+            "salle": s["salle"],
+            "ville": s["ville"],
+            "jour": date_courte(s["debut"]),
+            "heure": s["heure"].replace(":", "h") if s["heure"] else "",
+            "fin": "%02d/%02d" % (s["fin"].day, s["fin"].month) if s["fin"] > s["debut"] else None,
+            "image": s["image"],
+        })
+    return resultat
+
+
+def nom_affiche(evenement):
+    return "affiche-%s.jpg" % re.sub(r"[^A-Za-z0-9_-]", "", evenement["id"])
+
+
+def telecharger_affiches(liste):
+    """Telecharge les affiches manquantes et supprime celles qui ne servent plus"""
+    utiles = set()
+    for e in liste:
+        url = e.pop("image")
+        if not url:
+            e["affiche"] = None
+            continue
+        nom = nom_affiche(e)
+        utiles.add(nom)
+        e["affiche"] = nom
+        if os.path.exists(nom):
+            continue
+        try:
+            r = requests.get(url, timeout=30)
+            r.raise_for_status()
+            with open(nom + ".tmp", "wb") as f:
+                f.write(r.content)
+            os.rename(nom + ".tmp", nom)
+        except Exception:
+            traceback.print_exc()
+            e["affiche"] = None
+    for nom in os.listdir("."):
+        if nom.startswith("affiche-") and nom not in utiles:
+            os.remove(nom)
+
+
+def ecrire(liste):
+    with open("agenda.json.tmp", "w") as f:
+        json.dump({"maj": int(time.time()), "evenements": liste}, f)
+    os.rename("agenda.json.tmp", "agenda.json")
+
+
+def collecter(cle, deps):
+    evenements = []
+    for dep in deps:
+        if dep in CENTRES:
+            evenements += interroger(cle, CENTRES[dep])
+            time.sleep(0.5)
+        else:
+            print("departement %s inconnu, ignore" % dep)
+    return resumer(evenements, deps)
+
+
+def main():
+    while True:
+        config = lire_config()
+        cle = (config.get("cle_api") or "").strip()
+        deps = departements(config.get("codes_postaux"))
+        if not cle or not deps:
+            print("agenda: cle API ou codes postaux manquants")
+            time.sleep(60)
+            continue
+        try:
+            liste = collecter(cle, deps)
+            telecharger_affiches(liste)
+            ecrire(liste)
+            print("agenda: %d spectacles" % len(liste))
+            time.sleep(PERIODE)
+        except Exception:
+            traceback.print_exc()
+            time.sleep(PERIODE_ERREUR)
+
+
+if __name__ == "__main__":
+    main()

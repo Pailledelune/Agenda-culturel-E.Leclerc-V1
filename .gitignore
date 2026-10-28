@@ -1,0 +1,8 @@
+# Clé API : ne jamais publier
+cle_ticketmaster.txt
+
+# Fichiers créés par le service ou les tests locaux
+_test/
+agenda.json
+agenda.json.tmp
+affiche-*
