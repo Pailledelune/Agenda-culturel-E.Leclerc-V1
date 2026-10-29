@@ -65,8 +65,14 @@ local shader_fondu = resource.create_shader[[
 local LIGNES_DEFAUT   = 15
 local DUREE_UNE_FIXE  = 8       -- secondes par evenement a la une quand la liste ne defile pas
 local DUREE_FONDU     = 0.7     -- fondu enchaine entre deux evenements a la une
-local VITESSES = {               -- lignes par seconde
-  ["1"] = 0.06, ["2"] = 0.10, ["3"] = 0.15, ["4"] = 0.22,
+-- Pixels par image (ecran de 1920 de haut, 60 images par seconde). Des
+-- fractions simples donnent une cadence parfaitement reguliere : 1/2 = un
+-- pixel toutes les 2 images, 1/3 = toutes les 3 images, etc.
+local VITESSES = {
+  ["1"] = 1 / 4,    -- tres lente : 15 pixels par seconde
+  ["2"] = 1 / 3,    -- lente      : 20 pixels par seconde
+  ["3"] = 1 / 2,    -- normale    : 30 pixels par seconde
+  ["4"] = 1,        -- rapide     : 60 pixels par seconde
 }
 
 -- Reglages (modifiables depuis le tableau de bord info-beamer)
@@ -90,6 +96,7 @@ end)
 -- Agenda ecrit par le service (agenda.json), absent au premier demarrage
 local evenements = {}
 local depart = sys.now()        -- debut du defilement, remis a zero a chaque mise a jour
+local position = 0              -- defilement en pixels, avance d'un pas fixe a chaque image
 local cache_textes = {}
 
 local function lire_agenda()
@@ -99,6 +106,7 @@ local function lire_agenda()
   if ok and type(donnees) == "table" and type(donnees.evenements) == "table" then
     evenements = donnees.evenements
     depart = sys.now()
+    position = 0
     cache_textes = {}
   end
 end
@@ -308,28 +316,30 @@ local function mise_en_page_ligne(e, W, H, h)
   local t2 = math.min(h * 0.27, H * 0.0140)
   local bloc = t1 * 1.22 + t2
   m.t1, m.t2 = t1, t2
-  m.y1 = (h - bloc) / 2
-  m.y2 = m.y1 + t1 * 1.22
+  -- Positions arrondies au pixel : le texte reste net en defilant
+  m.y1 = math.floor((h - bloc) / 2 + 0.5)
+  m.y2 = math.floor(m.y1 + t1 * 1.22 + 0.5)
 
-  m.x = p + font:width("mer. 30/12", t1) + p * 0.6
+  m.x = math.floor(p + font:width("mer. 30/12", t1) + p * 0.6 + 0.5)
   m.titre = tronquer(e.titre or "", t1, W - m.x - p)
 
   -- A droite : type de spectacle, puis "jusqu'au ..." ; jamais coupes
   local droite = W - p
   if type(e.fin) == "string" then
     m.fin = "jusqu'au " .. e.fin
-    droite = droite - font:width(m.fin, t2)
+    droite = math.floor(droite - font:width(m.fin, t2))
     m.fin_x = droite
     droite = droite - t2 * 0.6
   end
   if type(e.type) == "string" then
-    droite = droite - font:width(e.type, t2)
+    droite = math.floor(droite - font:width(e.type, t2))
     m.type_x = droite
     droite = droite - t2 * 1.0
   end
 
   -- Salle et ville dans la place restante (reduites si besoin)
   m.lieu, m.t_lieu = ajuster(lieu(e), t2, droite - m.x)
+  m.lieu_dy = math.floor((t2 - m.t_lieu) / 2 + 0.5)
 
   e._ligne = m
   return m
@@ -344,9 +354,10 @@ local function ligne(e, W, H, y, h)
   ecrire(m.titre, m.x, y + m.y1, m.t1, TEXTE)
   if m.fin then ecrire(m.fin, m.fin_x, y + m.y2, m.t2, TEXTE_2) end
   if m.type_x then ecrire(e.type, m.type_x, y + m.y2, m.t2, ACCENT) end
-  ecrire(m.lieu, m.x, y + m.y2 + (m.t2 - m.t_lieu) / 2, m.t_lieu, TEXTE_2)
+  ecrire(m.lieu, m.x, y + m.y2 + m.lieu_dy, m.t_lieu, TEXTE_2)
 
-  tex_trait:draw(p, y + h - 2, W - p, y + h)
+  local bas = math.floor(y + h + 0.5)
+  tex_trait:draw(p, bas - 2, W - p, bas)
 end
 
 local function fondu(x1, y1, x2, y2, c, vers_bas)
@@ -407,22 +418,26 @@ function node.render()
     return
   end
 
-  -- Defilement continu de la liste ; l'evenement arrive en haut passe a la une
-  local premier, decalage, i_une
-  local ecoule = sys.now() - depart
+  -- Defilement continu de la liste ; l'evenement arrive en haut passe a la une.
+  -- La liste avance d'un pas fixe a chaque image (60 par seconde) et est
+  -- dessinee sur des pixels entiers : le mouvement garde une cadence reguliere
+  -- au lieu de suivre l'horloge, dont les petits ecarts d'une image a l'autre
+  -- se voient sur un texte qui defile lentement.
+  local premier, y, i_une
   if n > lignes then
-    local y = (ecoule * vitesse * h_ligne) % (n * h_ligne)
-    premier  = math.floor(y / h_ligne)
-    decalage = y - premier * h_ligne
-    i_une    = math.floor(y / h_ligne + 0.5) % n
+    position = (position + vitesse * H / 1920) % (n * h_ligne)
+    y = math.floor(position + 0.5)
+    premier = math.floor(y / h_ligne)
+    i_une   = math.floor(y / h_ligne + 0.5) % n
   else
-    premier, decalage = 0, 0
-    i_une = math.floor(ecoule / DUREE_UNE_FIXE) % n
+    premier, y = 0, 0
+    i_une = math.floor((sys.now() - depart) / DUREE_UNE_FIXE) % n
   end
 
   local a_montrer = math.min(n, lignes + 1)
   for k = 0, a_montrer - 1 do
-    ligne(evenements[(premier + k) % n + 1], W, H, y_liste + k * h_ligne - decalage, h_ligne)
+    local haut = math.floor(y_liste + (premier + k) * h_ligne + 0.5) - y
+    ligne(evenements[(premier + k) % n + 1], W, H, haut, h_ligne)
   end
 
   -- Les lignes s'estompent en passant sous la une, et un peu avant le pied
