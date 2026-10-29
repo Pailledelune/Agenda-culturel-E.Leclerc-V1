@@ -13,38 +13,20 @@ local function melange(c1, c2, t)
   return {c1[1] + (c2[1] - c1[1]) * t, c1[2] + (c2[2] - c1[2]) * t, c1[3] + (c2[3] - c1[3]) * t}
 end
 
--- Couleurs reglables dans info-beamer (valeurs par defaut ci-dessous) :
--- trois fonds (en-tete et pied, liste, une), le texte et l'accent.
--- Les filets et le texte secondaire en sont deduits.
-local DEFAUT_CADRE  = {0.08, 0.09, 0.12}      -- #14171F
-local DEFAUT_LISTE  = {0.08, 0.09, 0.12}      -- #14171F
-local DEFAUT_UNE    = {0.126, 0.136, 0.164}   -- #20232A
-local DEFAUT_TEXTE  = {1.00, 1.00, 1.00}      -- #FFFFFF
-local DEFAUT_ACCENT = {0.97, 0.58, 0.12}      -- #F7941F
+-- Couleurs fixes (volontairement non reglables dans info-beamer)
+local FOND_CADRE = {0.08, 0.09, 0.12}      -- #14171F : en-tete et pied
+local FOND_LISTE = {0.08, 0.09, 0.12}      -- #14171F : liste
+local FOND_UNE   = {0.126, 0.136, 0.164}   -- #20232A : une
+local TEXTE      = {1.00, 1.00, 1.00}      -- #FFFFFF
+local ACCENT     = {0.97, 0.58, 0.12}      -- #F7941F
+local TRAIT      = melange(FOND_LISTE, {1, 1, 1}, 0.09)
+local TEXTE_2    = melange(TEXTE, FOND_LISTE, 0.25)
 
-local tex_blanc = texture{1, 1, 1}
-local FOND_CADRE, FOND_LISTE, FOND_UNE, TRAIT, ACCENT, TEXTE, TEXTE_2
-local tex_cadre, tex_une, tex_trait, tex_accent
-
-local function appliquer_couleurs(cadre, liste, une, texte, accent)
-  FOND_CADRE, FOND_LISTE, FOND_UNE = cadre, liste, une
-  TEXTE, ACCENT = texte, accent
-  TRAIT    = melange(liste, {1, 1, 1}, 0.09)
-  TEXTE_2  = melange(texte, liste, 0.25)
-  for _, t in pairs{tex_cadre or false, tex_une or false, tex_trait or false, tex_accent or false} do
-    if t then t:dispose() end
-  end
-  tex_cadre, tex_une    = texture(FOND_CADRE), texture(FOND_UNE)
-  tex_trait, tex_accent = texture(TRAIT), texture(ACCENT)
-end
-
-appliquer_couleurs(DEFAUT_CADRE, DEFAUT_LISTE, DEFAUT_UNE, DEFAUT_TEXTE, DEFAUT_ACCENT)
-
--- Couleur lue dans config.json ({r=, g=, b=, ...}), ou la valeur par defaut
-local function couleur(c, defaut)
-  if type(c) == "table" and tonumber(c.r) then return {c.r, c.g, c.b} end
-  return defaut
-end
+local tex_blanc  = texture{1, 1, 1}
+local tex_cadre  = texture(FOND_CADRE)
+local tex_une    = texture(FOND_UNE)
+local tex_trait  = texture(TRAIT)
+local tex_accent = texture(ACCENT)
 
 -- Degrade de transparence : les lignes s'estompent en passant sous la une
 local shader_fondu = resource.create_shader[[
@@ -86,11 +68,6 @@ util.json_watch("config.json", function(config)
   vitesse  = VITESSES[tostring(config.vitesse)] or VITESSES["2"]
   rotation = tonumber(config.rotation) or 90
   lignes   = math.min(math.max(math.floor(tonumber(config.lignes) or LIGNES_DEFAUT), 6), 20)
-  appliquer_couleurs(couleur(config.couleur_cadre, DEFAUT_CADRE),
-                     couleur(config.couleur_liste, DEFAUT_LISTE),
-                     couleur(config.couleur_une, DEFAUT_UNE),
-                     couleur(config.couleur_texte, DEFAUT_TEXTE),
-                     couleur(config.couleur_accent, DEFAUT_ACCENT))
 end)
 
 -- Agenda ecrit par le service (agenda.json), absent au premier demarrage
