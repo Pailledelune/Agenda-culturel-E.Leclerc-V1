@@ -14,9 +14,9 @@ local function melange(c1, c2, t)
 end
 
 -- Couleurs fixes (volontairement non reglables dans info-beamer)
-local FOND_CADRE = {0.08, 0.09, 0.12}      -- #14171F : en-tete et pied
-local FOND_LISTE = {0.08, 0.09, 0.12}      -- #14171F : liste
-local FOND_UNE   = {0.126, 0.136, 0.164}   -- #20232A : une
+local FOND_CADRE = {0.055, 0.063, 0.075}  -- #0E1013 : en-tete et pied (le plus sombre)
+local FOND_LISTE = {0.106, 0.118, 0.137}  -- #1B1E23 : liste
+local FOND_UNE   = {0.149, 0.165, 0.192}  -- #262A31 : une (le plus clair)
 local TEXTE      = {1.00, 1.00, 1.00}      -- #FFFFFF
 local ACCENT     = {0.97, 0.58, 0.12}      -- #F7941F
 local TRAIT      = melange(FOND_LISTE, {1, 1, 1}, 0.09)
