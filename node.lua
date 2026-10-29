@@ -13,29 +13,32 @@ local function melange(c1, c2, t)
   return {c1[1] + (c2[1] - c1[1]) * t, c1[2] + (c2[2] - c1[2]) * t, c1[3] + (c2[3] - c1[3]) * t}
 end
 
--- Couleurs : fond, texte et accent se reglent dans info-beamer (valeurs par
--- defaut ci-dessous) ; les autres teintes en sont deduites
-local DEFAUT_FOND   = {0.08, 0.09, 0.12}   -- #14171F
-local DEFAUT_TEXTE  = {1.00, 1.00, 1.00}   -- #FFFFFF
-local DEFAUT_ACCENT = {0.97, 0.58, 0.12}   -- #F7941F
+-- Couleurs reglables dans info-beamer (valeurs par defaut ci-dessous) :
+-- trois fonds (en-tete et pied, liste, une), le texte et l'accent.
+-- Les filets et le texte secondaire en sont deduits.
+local DEFAUT_CADRE  = {0.08, 0.09, 0.12}      -- #14171F
+local DEFAUT_LISTE  = {0.08, 0.09, 0.12}      -- #14171F
+local DEFAUT_UNE    = {0.126, 0.136, 0.164}   -- #20232A
+local DEFAUT_TEXTE  = {1.00, 1.00, 1.00}      -- #FFFFFF
+local DEFAUT_ACCENT = {0.97, 0.58, 0.12}      -- #F7941F
 
 local tex_blanc = texture{1, 1, 1}
-local FOND, FOND_UNE, TRAIT, ACCENT, TEXTE, TEXTE_2
-local tex_fond, tex_fond_une, tex_trait, tex_accent
+local FOND_CADRE, FOND_LISTE, FOND_UNE, TRAIT, ACCENT, TEXTE, TEXTE_2
+local tex_cadre, tex_une, tex_trait, tex_accent
 
-local function appliquer_couleurs(fond, texte, accent)
-  FOND, TEXTE, ACCENT = fond, texte, accent
-  FOND_UNE = melange(fond, {1, 1, 1}, 0.05)
-  TRAIT    = melange(fond, {1, 1, 1}, 0.09)
-  TEXTE_2  = melange(texte, fond, 0.25)
-  for _, t in pairs{tex_fond or false, tex_fond_une or false, tex_trait or false, tex_accent or false} do
+local function appliquer_couleurs(cadre, liste, une, texte, accent)
+  FOND_CADRE, FOND_LISTE, FOND_UNE = cadre, liste, une
+  TEXTE, ACCENT = texte, accent
+  TRAIT    = melange(liste, {1, 1, 1}, 0.09)
+  TEXTE_2  = melange(texte, liste, 0.25)
+  for _, t in pairs{tex_cadre or false, tex_une or false, tex_trait or false, tex_accent or false} do
     if t then t:dispose() end
   end
-  tex_fond, tex_fond_une = texture(FOND), texture(FOND_UNE)
-  tex_trait, tex_accent  = texture(TRAIT), texture(ACCENT)
+  tex_cadre, tex_une    = texture(FOND_CADRE), texture(FOND_UNE)
+  tex_trait, tex_accent = texture(TRAIT), texture(ACCENT)
 end
 
-appliquer_couleurs(DEFAUT_FOND, DEFAUT_TEXTE, DEFAUT_ACCENT)
+appliquer_couleurs(DEFAUT_CADRE, DEFAUT_LISTE, DEFAUT_UNE, DEFAUT_TEXTE, DEFAUT_ACCENT)
 
 -- Couleur lue dans config.json ({r=, g=, b=, ...}), ou la valeur par defaut
 local function couleur(c, defaut)
@@ -75,7 +78,9 @@ util.json_watch("config.json", function(config)
   titre    = config.titre or titre
   vitesse  = VITESSES[tostring(config.vitesse)] or VITESSES["2"]
   rotation = tonumber(config.rotation) or 90
-  appliquer_couleurs(couleur(config.couleur_fond, DEFAUT_FOND),
+  appliquer_couleurs(couleur(config.couleur_cadre, DEFAUT_CADRE),
+                     couleur(config.couleur_liste, DEFAUT_LISTE),
+                     couleur(config.couleur_une, DEFAUT_UNE),
                      couleur(config.couleur_texte, DEFAUT_TEXTE),
                      couleur(config.couleur_accent, DEFAUT_ACCENT))
 end)
@@ -187,7 +192,7 @@ end
 ------------------------------------------------------------------------
 
 local function entete(W, H, h)
-  tex_fond:draw(0, 0, W, h)
+  tex_cadre:draw(0, 0, W, h)
   local p = W * 0.05
   ecrire("AGENDA CULTUREL", p, h * 0.20, H * 0.016, ACCENT)
   ecrire(tronquer(titre, H * 0.042, W - 2 * p), p, h * 0.40, H * 0.042, TEXTE)
@@ -219,7 +224,7 @@ local function une(e, W, H, y0, h, a)
   local y = by
 
   -- "A la une" puis le type de spectacle, a la ligne s'il ne tient pas
-  local w = etiquette("À LA UNE", x, y, t_tag, tex_accent, FOND, a)
+  local w = etiquette("À LA UNE", x, y, t_tag, tex_accent, FOND_CADRE, a)
   local h_tag = t_tag * 1.8
   if type(e.type) == "string" then
     local w_type = font:width(e.type, t_tag) + t_tag * 0.8
@@ -297,7 +302,7 @@ local function fondu(x1, y1, x2, y2, c, vers_bas)
 end
 
 local function pied(W, H, y0)
-  tex_fond:draw(0, y0, W, H)
+  tex_cadre:draw(0, y0, W, H)
   tex_trait:draw(0, y0, W, y0 + 2)
   local h = H - y0
   local lh = h * 0.50
@@ -324,7 +329,7 @@ local function changer_une(e)
 end
 
 function node.render()
-  gl.clear(FOND[1], FOND[2], FOND[3], 1)
+  gl.clear(FOND_LISTE[1], FOND_LISTE[2], FOND_LISTE[3], 1)
 
   -- Ecran en portrait : on tourne le dessin
   local W, H = WIDTH, HEIGHT
@@ -367,12 +372,12 @@ function node.render()
   end
 
   -- Les lignes s'estompent en passant sous la une, et un peu avant le pied
-  fondu(0, y_liste, W, y_liste + h_ligne * 0.9, FOND, true)
-  fondu(0, y_pied - h_ligne * 0.35, W, y_pied, FOND, false)
+  fondu(0, y_liste, W, y_liste + h_ligne * 0.9, FOND_LISTE, true)
+  fondu(0, y_pied - h_ligne * 0.35, W, y_pied, FOND_LISTE, false)
 
   -- En-tete, une et pied recouvrent les lignes qui sortent de la liste
   entete(W, H, h_entete)
-  tex_fond_une:draw(0, h_entete, W, y_liste)
+  tex_une:draw(0, h_entete, W, y_liste)
   changer_une(evenements[i_une + 1])
   local t = math.min((sys.now() - debut_fondu) / DUREE_FONDU, 1)
   if t < 1 then une(une_precedente, W, H, h_entete, h_une, 1 - t) end

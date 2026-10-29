@@ -42,14 +42,28 @@
     {
       "title": "Couleurs",
       "type": "section",
-      "intro": "Valeurs par défaut : fond #14171F, texte #FFFFFF, accent #F7941F. Les teintes intermédiaires (cartouche de la une, filets, texte secondaire) sont calculées à partir de ces trois couleurs."
+      "intro": "Valeurs par défaut : en-tête et pied #14171F, liste #14171F, une #20232A, texte #FFFFFF, accent #F7941F. Les filets entre les lignes et le texte secondaire sont calculés à partir de ces couleurs."
     },
     {
-      "title": "Couleur de fond",
-      "name": "couleur_fond",
+      "title": "Fond de l'en-tête et du pied de page",
+      "name": "couleur_cadre",
       "type": "color",
       "default": [0.08, 0.09, 0.12, 1],
       "hint": "Par défaut : #14171F (gris anthracite)"
+    },
+    {
+      "title": "Fond de la liste qui défile",
+      "name": "couleur_liste",
+      "type": "color",
+      "default": [0.08, 0.09, 0.12, 1],
+      "hint": "Par défaut : #14171F (gris anthracite)"
+    },
+    {
+      "title": "Fond de la une",
+      "name": "couleur_une",
+      "type": "color",
+      "default": [0.126, 0.136, 0.164, 1],
+      "hint": "Par défaut : #20232A (anthracite un peu plus clair)"
     },
     {
       "title": "Couleur du texte",
@@ -68,7 +82,14 @@
     {
       "title": "Événements",
       "type": "section",
-      "intro": "Concerts, spectacles et théâtre des 2 prochains mois, mis à jour toutes les heures."
+      "intro": "Concerts, spectacles et théâtre à venir, mis à jour toutes les heures et dès qu'un réglage change."
+    },
+    {
+      "title": "Nombre de jours à afficher",
+      "name": "jours",
+      "type": "integer",
+      "default": 60,
+      "hint": "Événements des N prochains jours (1 à 365). Par défaut : 60, soit environ 2 mois."
     },
     {
       "title": "Codes postaux ou départements",

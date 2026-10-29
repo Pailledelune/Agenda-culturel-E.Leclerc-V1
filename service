@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 # Service agenda : interroge Ticketmaster toutes les heures, garde les
-# concerts, spectacles et pieces de theatre des 2 prochains mois dans les
+# concerts, spectacles et pieces de theatre des prochains jours dans les
 # departements choisis, telecharge les affiches et ecrit agenda.json,
 # lu par node.lua. Compatible Python 2.7 (info-beamer) et 3.
 
@@ -19,7 +19,7 @@ import requests
 URL = "https://app.ticketmaster.com/discovery/v2/events.json"
 PERIODE = 60 * 60          # secondes entre deux mises a jour
 PERIODE_ERREUR = 5 * 60    # nouvel essai apres une erreur
-JOURS_A_VENIR = 61
+JOURS_A_VENIR = 60        # par defaut ; reglable dans info-beamer
 
 # Segments Ticketmaster : Musique, Arts et spectacles
 SEGMENTS = "KZFzniwnSyZfZ7v7nJ,KZFzniwnSyZfZ7v7na"
@@ -167,10 +167,10 @@ def geohash(lat, lon, longueur=7):
     return resultat
 
 
-def interroger(cle, dep):
+def interroger(cle, dep, jours):
     lat, lon, rayon = CENTRES[dep]
     maintenant = datetime.datetime.utcnow().replace(microsecond=0)
-    fin = maintenant + datetime.timedelta(days=JOURS_A_VENIR)
+    fin = maintenant + datetime.timedelta(days=jours)
     evenements = []
     page = 0
     while True:
@@ -314,16 +314,38 @@ def departements(code):
     return [code[:2]]
 
 
-def collecter(cle, codes):
+def collecter(cle, codes, jours=JOURS_A_VENIR):
     evenements = []
     deps = sorted(set(d for c in codes for d in departements(c)))
     for dep in deps:                         # une recherche par departement
         if dep in CENTRES:
-            evenements += interroger(cle, dep)
+            evenements += interroger(cle, dep, jours)
             time.sleep(0.5)
         else:
             print("departement %s inconnu, ignore" % dep)
     return resumer(evenements, codes)
+
+
+def nombre_jours(config):
+    try:
+        return min(max(int(config.get("jours") or JOURS_A_VENIR), 1), 365)
+    except (TypeError, ValueError):
+        return JOURS_A_VENIR
+
+
+def attendre(secondes):
+    """Attend, mais repart tout de suite si les reglages changent"""
+    def date_config():
+        try:
+            return os.path.getmtime("config.json")
+        except OSError:
+            return None
+    avant = date_config()
+    fin = time.time() + secondes
+    while time.time() < fin:
+        time.sleep(10)
+        if date_config() != avant:
+            return
 
 
 def main():
@@ -333,17 +355,17 @@ def main():
         codes = codes_postaux(config.get("codes_postaux"))
         if not cle or not codes:
             print("agenda: cle API ou codes postaux manquants")
-            time.sleep(60)
+            attendre(60)
             continue
         try:
-            liste = collecter(cle, codes)
+            liste = collecter(cle, codes, nombre_jours(config))
             telecharger_affiches(liste)
             ecrire(liste)
             print("agenda: %d spectacles" % len(liste))
-            time.sleep(PERIODE)
+            attendre(PERIODE)
         except Exception:
             traceback.print_exc()
-            time.sleep(PERIODE_ERREUR)
+            attendre(PERIODE_ERREUR)
 
 
 if __name__ == "__main__":
