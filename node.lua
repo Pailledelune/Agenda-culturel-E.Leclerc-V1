@@ -3,7 +3,7 @@ gl.setup(NATIVE_WIDTH, NATIVE_HEIGHT)
 local json = require "json"
 
 local font = resource.load_font "font.ttf"
-local logo = resource.load_image "logo.png"
+local logo = resource.load_image "logo-espace-culturel.png"
 
 local function texture(c)
   return resource.create_colored_texture(c[1], c[2], c[3], 1)
@@ -201,11 +201,21 @@ end
 -- Zones de l'ecran
 ------------------------------------------------------------------------
 
+-- En-tete : titre a gauche, logo Espace culturel a droite ; le titre
+-- s'arrete avant le logo (raccourci s'il est trop long)
 local function entete(W, H, h)
   tex_cadre:draw(0, 0, W, h)
   local p = W * 0.05
+
+  local iw, ih = logo:size()
+  local lh = h * 0.70
+  local lw = lh * iw / ih
+  local lx = W - W * 0.04 - lw
+  logo:draw(lx, (h - lh) / 2 - H * 0.002, lx + lw, (h + lh) / 2 - H * 0.002)
+
+  local larg = lx - W * 0.03 - p
   ecrire("AGENDA CULTUREL", p, h * 0.20, H * 0.016, ACCENT)
-  ecrire(tronquer(titre, H * 0.042, W - 2 * p), p, h * 0.40, H * 0.042, TEXTE)
+  ecrire(tronquer(titre, H * 0.042, larg), p, h * 0.40, H * 0.042, TEXTE)
   tex_accent:draw(0, h - H * 0.004, W, h)
 end
 
@@ -323,18 +333,19 @@ local function mise_en_page_ligne(e, W, H, h)
   m.x = math.floor(p + font:width("mer. 30/12", t1) + p * 0.6 + 0.5)
   m.titre = tronquer(e.titre or "", t1, W - m.x - p)
 
-  -- A droite : type de spectacle, puis "jusqu'au ..." ; jamais coupes
+  -- A droite : type de spectacle colle au bord (tous alignes), precede de
+  -- "jusqu'au ..." ; jamais coupes
   local droite = W - p
+  if type(e.type) == "string" then
+    droite = math.floor(droite - font:width(e.type, t2))
+    m.type_x = droite
+    droite = droite - t2 * 0.9
+  end
   if type(e.fin) == "string" then
     m.fin = "jusqu'au " .. e.fin
     droite = math.floor(droite - font:width(m.fin, t2))
     m.fin_x = droite
-    droite = droite - t2 * 0.6
-  end
-  if type(e.type) == "string" then
-    droite = math.floor(droite - font:width(e.type, t2))
-    m.type_x = droite
-    droite = droite - t2 * 1.0
+    droite = droite - t2 * 0.9
   end
 
   -- Salle et ville dans la place restante (reduites si besoin)
@@ -370,15 +381,19 @@ local function pied(W, H, y0)
   tex_cadre:draw(0, y0, W, H)
   tex_trait:draw(0, y0, W, y0 + 2)
   local h = H - y0
-  local lh = h * 0.50
-  local iw, ih = logo:size()
-  local lw = lh * iw / ih
-  local texte = "ESPACE CULTUREL"
-  local t = h * 0.30
-  local total = lw + h * 0.25 + font:width(texte, t)
+  local t1, t2 = "Billetterie Ticketmaster", "accueil ESPACE CULTUREL"
+  local t = h * 0.32
+  local espace = t * 0.5
+  local total = font:width(t1, t) + espace + font:width(t2, t)
+  if total > W * 0.92 then
+    t = t * W * 0.92 / total
+    espace = t * 0.5
+    total = font:width(t1, t) + espace + font:width(t2, t)
+  end
   local x = (W - total) / 2
-  logo:draw(x, y0 + (h - lh) / 2, x + lw, y0 + (h + lh) / 2)
-  ecrire(texte, x + lw + h * 0.25, y0 + (h - t) / 2, t, TEXTE)
+  local y = y0 + (h - t) / 2
+  ecrire(t1, x, y, t, ACCENT)
+  ecrire(t2, x + font:width(t1, t) + espace, y, t, TEXTE)
 end
 
 ------------------------------------------------------------------------
