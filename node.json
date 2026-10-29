@@ -40,6 +40,13 @@
       "default": "2"
     },
     {
+      "title": "Nombre de lignes affichées",
+      "name": "lignes",
+      "type": "integer",
+      "default": 15,
+      "hint": "De 6 à 20. Plus il y a de lignes, plus le texte est petit. Par défaut : 15."
+    },
+    {
       "title": "Couleurs",
       "type": "section",
       "intro": "Valeurs par défaut : en-tête et pied #14171F, liste #14171F, une #20232A, texte #FFFFFF, accent #F7941F. Les filets entre les lignes et le texte secondaire sont calculés à partir de ces couleurs."

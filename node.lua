@@ -62,7 +62,7 @@ local shader_fondu = resource.create_shader[[
   }
 ]]
 
-local LIGNES_VISIBLES = 8
+local LIGNES_DEFAUT   = 15
 local DUREE_UNE_FIXE  = 8       -- secondes par evenement a la une quand la liste ne defile pas
 local DUREE_FONDU     = 0.7     -- fondu enchaine entre deux evenements a la une
 local VITESSES = {               -- lignes par seconde
@@ -73,11 +73,13 @@ local VITESSES = {               -- lignes par seconde
 local titre    = "Strasbourg"
 local vitesse  = VITESSES["2"]
 local rotation = 90
+local lignes   = LIGNES_DEFAUT
 
 util.json_watch("config.json", function(config)
   titre    = config.titre or titre
   vitesse  = VITESSES[tostring(config.vitesse)] or VITESSES["2"]
   rotation = tonumber(config.rotation) or 90
+  lignes   = math.min(math.max(math.floor(tonumber(config.lignes) or LIGNES_DEFAUT), 6), 20)
   appliquer_couleurs(couleur(config.couleur_cadre, DEFAUT_CADRE),
                      couleur(config.couleur_liste, DEFAUT_LISTE),
                      couleur(config.couleur_une, DEFAUT_UNE),
@@ -263,34 +265,37 @@ local function ajuster(texte, taille, largeur)
   return tronquer(texte, taille, largeur), taille
 end
 
--- Une ligne de la liste, sur 3 niveaux :
---   date      TITRE
---   heure     SALLE - Ville
---             Type de spectacle  jusqu'au ...
+-- Une ligne de la liste, sur 2 niveaux :
+--   date   TITRE
+--   heure  SALLE - Ville                    Type de spectacle  jusqu'au ...
 local function ligne(e, W, y, h)
   local p = W * 0.04
-  local t_date, t_heure = h * 0.28, h * 0.21
-  local t1, t2, t3 = h * 0.21, h * 0.17, h * 0.15
-  local y1, y2, y3 = y + h * 0.10, y + h * 0.40, y + h * 0.66
+  local t1, t2 = h * 0.36, h * 0.27
+  local y1, y2 = y + h * 0.12, y + h * 0.56
 
-  ecrire(e.jour or "", p, y1, t_date, ACCENT)
-  ecrire(e.heure or "", p, y1 + t_date * 1.2, t_heure, TEXTE_2)
+  ecrire(e.jour or "", p, y1, t1, ACCENT)
+  ecrire(e.heure or "", p, y2, t2, TEXTE_2)
 
-  local x = p + font:width("mer. 30/12", t_date) + p * 0.8
-  local larg = W - x - p
-  ecrire(tronquer(e.titre or "", t1, larg), x, y1, t1, TEXTE)
+  local x = p + font:width("mer. 30/12", t1) + p * 0.6
+  ecrire(tronquer(e.titre or "", t1, W - x - p), x, y1, t1, TEXTE)
 
-  local texte, taille = ajuster(lieu(e), t2, larg)
-  ecrire(texte, x, y2 + (t2 - taille) / 2, taille, TEXTE_2)
-
-  local xs = x
-  if type(e.type) == "string" then
-    ecrire(e.type, xs, y3, t3, ACCENT)
-    xs = xs + font:width(e.type, t3) + t3 * 0.8
-  end
+  -- A droite : type de spectacle, puis "jusqu'au ..." ; jamais coupes
+  local droite = W - p
   if type(e.fin) == "string" then
-    ecrire(tronquer("jusqu'au " .. e.fin, t3, x + larg - xs), xs, y3, t3, TEXTE_2)
+    local t = "jusqu'au " .. e.fin
+    droite = droite - font:width(t, t2)
+    ecrire(t, droite, y2, t2, TEXTE_2)
+    droite = droite - t2 * 0.6
   end
+  if type(e.type) == "string" then
+    droite = droite - font:width(e.type, t2)
+    ecrire(e.type, droite, y2, t2, ACCENT)
+    droite = droite - t2 * 1.0
+  end
+
+  -- Salle et ville dans la place restante (reduites si besoin)
+  local texte, taille = ajuster(lieu(e), t2, droite - x)
+  ecrire(texte, x, y2 + (t2 - taille) / 2, taille, TEXTE_2)
 
   tex_trait:draw(p, y + h - 2, W - p, y + h)
 end
@@ -341,7 +346,7 @@ function node.render()
   local h_entete, h_une, h_pied = H * 0.09, H * 0.22, H * 0.07
   local y_liste = h_entete + h_une
   local y_pied = H - h_pied
-  local h_ligne = (y_pied - y_liste) / LIGNES_VISIBLES
+  local h_ligne = (y_pied - y_liste) / lignes
 
   local n = #evenements
   if n == 0 then
@@ -356,7 +361,7 @@ function node.render()
   -- Defilement continu de la liste ; l'evenement arrive en haut passe a la une
   local premier, decalage, i_une
   local ecoule = sys.now() - depart
-  if n > LIGNES_VISIBLES then
+  if n > lignes then
     local y = (ecoule * vitesse * h_ligne) % (n * h_ligne)
     premier  = math.floor(y / h_ligne)
     decalage = y - premier * h_ligne
@@ -366,7 +371,7 @@ function node.render()
     i_une = math.floor(ecoule / DUREE_UNE_FIXE) % n
   end
 
-  local a_montrer = math.min(n, LIGNES_VISIBLES + 1)
+  local a_montrer = math.min(n, lignes + 1)
   for k = 0, a_montrer - 1 do
     ligne(evenements[(premier + k) % n + 1], W, y_liste + k * h_ligne - decalage, h_ligne)
   end
