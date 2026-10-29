@@ -201,60 +201,88 @@ local function entete(W, H, h)
   tex_accent:draw(0, h - H * 0.004, W, h)
 end
 
--- Contenu de la une (affiche et textes), avec une transparence pour le fondu
-local function une(e, W, H, y0, h, a)
-  if not e or a <= 0 then return end
+-- La mise en page de chaque evenement (decoupage, raccourcis, positions) est
+-- calculee une seule fois puis gardee : a chaque image il ne reste qu'a
+-- dessiner, ce qui rend le defilement plus regulier.
 
-  -- Affiche a gauche, dans un cadre 3:2
+local function mise_en_page_une(e, W, H, h)
+  local m = e._une
+  if m and m.W == W and m.H == H then return m end
+  m = {W = W, H = H}
+
   local p  = W * 0.04
-  local bw = W * 0.46
-  local bh = math.min(bw / 1.5, h - 2 * p)
-  local by = y0 + (h - bh) / 2
-  tex_trait:draw(p, by, p + bw, by + bh, a)
-  local img = affiche(e.affiche)
-  if img and img:state() == "loaded" then
-    local iw, ih = img:size()
-    local f = math.min(bw / iw, bh / ih)
-    local dw, dh = iw * f, ih * f
-    img:draw(p + (bw - dw) / 2, by + (bh - dh) / 2, p + (bw + dw) / 2, by + (bh + dh) / 2, a)
-  end
-
-  -- Textes a droite
-  local x = p + bw + p
-  local larg = W - x - p
-  local t_tag, t_titre, t_info = H * 0.014, H * 0.022, H * 0.016
-  local y = by
+  m.bw = W * 0.46
+  m.bh = math.min(m.bw / 1.5, h - 2 * p)
+  m.x  = p + m.bw + p
+  local larg = W - m.x - p
+  m.t_tag, m.t_titre, m.t_info = H * 0.014, H * 0.022, H * 0.016
 
   -- "A la une" puis le type de spectacle, a la ligne s'il ne tient pas
-  local w = etiquette("À LA UNE", x, y, t_tag, tex_accent, FOND_CADRE, a)
-  local h_tag = t_tag * 1.8
+  local w_une = font:width("À LA UNE", m.t_tag) + m.t_tag * 0.8
+  m.h_tag = m.t_tag * 1.8
+  local y = 0
   if type(e.type) == "string" then
-    local w_type = font:width(e.type, t_tag) + t_tag * 0.8
-    if w + t_tag * 0.5 + w_type <= larg then
-      etiquette(e.type, x + w + t_tag * 0.5, y, t_tag, tex_trait, ACCENT, a)
+    local w_type = font:width(e.type, m.t_tag) + m.t_tag * 0.8
+    if w_une + m.t_tag * 0.5 + w_type <= larg then
+      m.type, m.type_x, m.type_y = e.type, w_une + m.t_tag * 0.5, 0
     else
-      y = y + h_tag + t_tag * 0.4
-      etiquette(tronquer(e.type, t_tag, larg - t_tag), x, y, t_tag, tex_trait, ACCENT, a)
+      y = m.h_tag + m.t_tag * 0.4
+      m.type, m.type_x, m.type_y = tronquer(e.type, m.t_tag, larg - m.t_tag), 0, y
     end
   end
-  y = y + h_tag + H * 0.010
+  y = y + m.h_tag + H * 0.010
 
-  for _, l in ipairs(couper(e.titre or "", t_titre, larg, 3)) do
-    ecrire(l, x, y, t_titre, TEXTE, a)
-    y = y + t_titre * 1.15
+  m.textes = {}
+  local function ajouter(texte, taille, c)
+    m.textes[#m.textes + 1] = {texte, y, taille, c}
+  end
+  for _, l in ipairs(couper(e.titre or "", m.t_titre, larg, 3)) do
+    ajouter(l, m.t_titre, "texte")
+    y = y + m.t_titre * 1.15
   end
   y = y + H * 0.006
-  for _, l in ipairs(couper(lieu(e), t_info, larg, 2)) do
-    ecrire(l, x, y, t_info, TEXTE_2, a)
-    y = y + t_info * 1.2
+  for _, l in ipairs(couper(lieu(e), m.t_info, larg, 2)) do
+    ajouter(l, m.t_info, "texte_2")
+    y = y + m.t_info * 1.2
   end
   y = y + H * 0.006
   local quand = e.jour or ""
   if e.heure and e.heure ~= "" then quand = quand .. " à " .. e.heure end
-  ecrire(tronquer(quand, t_info * 1.1, larg), x, y, t_info * 1.1, ACCENT, a)
+  ajouter(tronquer(quand, m.t_info * 1.1, larg), m.t_info * 1.1, "accent")
   if type(e.fin) == "string" then
-    y = y + t_info * 1.35
-    ecrire(tronquer("jusqu'au " .. e.fin, t_info, larg), x, y, t_info, TEXTE_2, a)
+    y = y + m.t_info * 1.35
+    ajouter(tronquer("jusqu'au " .. e.fin, m.t_info, larg), m.t_info, "texte_2")
+  end
+
+  e._une = m
+  return m
+end
+
+-- Contenu de la une (affiche et textes), avec une transparence pour le fondu
+local function une(e, W, H, y0, h, a)
+  if not e or a <= 0 then return end
+  local m = mise_en_page_une(e, W, H, h)
+
+  -- Affiche a gauche, dans un cadre 3:2
+  local p  = W * 0.04
+  local by = y0 + (h - m.bh) / 2
+  tex_trait:draw(p, by, p + m.bw, by + m.bh, a)
+  local img = affiche(e.affiche)
+  if img and img:state() == "loaded" then
+    local iw, ih = img:size()
+    local f = math.min(m.bw / iw, m.bh / ih)
+    local dw, dh = iw * f, ih * f
+    img:draw(p + (m.bw - dw) / 2, by + (m.bh - dh) / 2, p + (m.bw + dw) / 2, by + (m.bh + dh) / 2, a)
+  end
+
+  -- Textes a droite
+  local couleurs = {texte = TEXTE, texte_2 = TEXTE_2, accent = ACCENT}
+  etiquette("À LA UNE", m.x, by, m.t_tag, tex_accent, FOND_CADRE, a)
+  if m.type then
+    etiquette(m.type, m.x + m.type_x, by + m.type_y, m.t_tag, tex_trait, ACCENT, a)
+  end
+  for _, t in ipairs(m.textes) do
+    ecrire(t[1], m.x, by + t[2], t[3], couleurs[t[4]], a)
   end
 end
 
@@ -268,34 +296,55 @@ end
 -- Une ligne de la liste, sur 2 niveaux :
 --   date   TITRE
 --   heure  SALLE - Ville                    Type de spectacle  jusqu'au ...
-local function ligne(e, W, y, h)
+-- Le texte est plafonne a sa taille pour 12 lignes : avec moins de lignes,
+-- elles sont simplement plus espacees.
+local function mise_en_page_ligne(e, W, H, h)
+  local m = e._ligne
+  if m and m.W == W and m.h == h then return m end
+  m = {W = W, h = h}
+
   local p = W * 0.04
-  local t1, t2 = h * 0.36, h * 0.27
-  local y1, y2 = y + h * 0.12, y + h * 0.56
+  local t1 = math.min(h * 0.36, H * 0.0185)
+  local t2 = math.min(h * 0.27, H * 0.0140)
+  local bloc = t1 * 1.22 + t2
+  m.t1, m.t2 = t1, t2
+  m.y1 = (h - bloc) / 2
+  m.y2 = m.y1 + t1 * 1.22
 
-  ecrire(e.jour or "", p, y1, t1, ACCENT)
-  ecrire(e.heure or "", p, y2, t2, TEXTE_2)
-
-  local x = p + font:width("mer. 30/12", t1) + p * 0.6
-  ecrire(tronquer(e.titre or "", t1, W - x - p), x, y1, t1, TEXTE)
+  m.x = p + font:width("mer. 30/12", t1) + p * 0.6
+  m.titre = tronquer(e.titre or "", t1, W - m.x - p)
 
   -- A droite : type de spectacle, puis "jusqu'au ..." ; jamais coupes
   local droite = W - p
   if type(e.fin) == "string" then
-    local t = "jusqu'au " .. e.fin
-    droite = droite - font:width(t, t2)
-    ecrire(t, droite, y2, t2, TEXTE_2)
+    m.fin = "jusqu'au " .. e.fin
+    droite = droite - font:width(m.fin, t2)
+    m.fin_x = droite
     droite = droite - t2 * 0.6
   end
   if type(e.type) == "string" then
     droite = droite - font:width(e.type, t2)
-    ecrire(e.type, droite, y2, t2, ACCENT)
+    m.type_x = droite
     droite = droite - t2 * 1.0
   end
 
   -- Salle et ville dans la place restante (reduites si besoin)
-  local texte, taille = ajuster(lieu(e), t2, droite - x)
-  ecrire(texte, x, y2 + (t2 - taille) / 2, taille, TEXTE_2)
+  m.lieu, m.t_lieu = ajuster(lieu(e), t2, droite - m.x)
+
+  e._ligne = m
+  return m
+end
+
+local function ligne(e, W, H, y, h)
+  local m = mise_en_page_ligne(e, W, H, h)
+  local p = W * 0.04
+
+  ecrire(e.jour or "", p, y + m.y1, m.t1, ACCENT)
+  ecrire(e.heure or "", p, y + m.y2, m.t2, TEXTE_2)
+  ecrire(m.titre, m.x, y + m.y1, m.t1, TEXTE)
+  if m.fin then ecrire(m.fin, m.fin_x, y + m.y2, m.t2, TEXTE_2) end
+  if m.type_x then ecrire(e.type, m.type_x, y + m.y2, m.t2, ACCENT) end
+  ecrire(m.lieu, m.x, y + m.y2 + (m.t2 - m.t_lieu) / 2, m.t_lieu, TEXTE_2)
 
   tex_trait:draw(p, y + h - 2, W - p, y + h)
 end
@@ -373,7 +422,7 @@ function node.render()
 
   local a_montrer = math.min(n, lignes + 1)
   for k = 0, a_montrer - 1 do
-    ligne(evenements[(premier + k) % n + 1], W, y_liste + k * h_ligne - decalage, h_ligne)
+    ligne(evenements[(premier + k) % n + 1], W, H, y_liste + k * h_ligne - decalage, h_ligne)
   end
 
   -- Les lignes s'estompent en passant sous la une, et un peu avant le pied
